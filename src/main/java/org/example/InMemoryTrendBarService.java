@@ -116,6 +116,11 @@ public final class InMemoryTrendBarService implements TrendBarService {
     }
   }
 
+  @Override
+  public void feed(Symbol symbol, int price) {
+    feed(symbol, price, timeSupplier.get());
+  }
+
   private void updateEntry(Map<Symbol, Map<Period, List<Bar>>> map, Symbol symbol, Period period, Bar bar) {
     map.computeIfAbsent(symbol, s -> new HashMap<>())
             .computeIfAbsent(period, p -> new ArrayList<>()).add(bar);

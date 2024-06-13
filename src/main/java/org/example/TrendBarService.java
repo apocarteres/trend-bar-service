@@ -7,5 +7,7 @@ public interface TrendBarService {
 
   List<Bar> history(Symbol symbol, Period period, long from, long to);
 
+  void feed(Symbol symbol, int price);
+
   void feed(Symbol symbol, int price, long timestamp);
 }
