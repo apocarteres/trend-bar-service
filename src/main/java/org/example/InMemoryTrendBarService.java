@@ -48,16 +48,15 @@ public final class InMemoryTrendBarService implements TrendBarService {
       var symbol = quote.symbol();
       //block builders and assembly bars, move read-to-go bars into history candidates
       synchronized (buildersMutex) {
-        var periods = barBuilders.computeIfAbsent(symbol, makePeriodsComposer(quote));
-        for (var entry : periods.entrySet()) {
+        var periods = barBuilders.computeIfAbsent(symbol, s -> new HashMap<>());
+        for (var period : Period.values()) {
           var ts = quote.timestamp();
-          var period = entry.getKey();
-          var builder = entry.getValue();
+          var builder = periods.computeIfAbsent(period, makeBuilderFor(quote));
           if (builder.isOpen(ts)) {
             builder.update(quote.price(), ts);
           } else {
-            updateEntry(historyCandidates, symbol, period, builder.build());
-            entry.setValue(makeBuilderFor(quote, period));
+            pushCandidate(historyCandidates, symbol, period, builder.build());
+            periods.remove(period);
           }
         }
       }
@@ -71,7 +70,7 @@ public final class InMemoryTrendBarService implements TrendBarService {
           var pair = it.next();
           var builder = pair.getValue();
           if (!builder.isOpen(now)) {
-            updateEntry(historyCandidates, entry.getKey(), pair.getKey(), builder.build());
+            pushCandidate(historyCandidates, entry.getKey(), pair.getKey(), builder.build());
             it.remove();
           }
         }
@@ -84,7 +83,7 @@ public final class InMemoryTrendBarService implements TrendBarService {
         var symbol = entry.getKey();
         for (var builders : entry.getValue().entrySet()) {
           for (var bar : builders.getValue()) {
-            updateEntry(history, symbol, builders.getKey(), bar);
+            pushCandidate(history, symbol, builders.getKey(), bar);
           }
         }
       }
@@ -121,7 +120,7 @@ public final class InMemoryTrendBarService implements TrendBarService {
     feed(symbol, price, timeSupplier.get());
   }
 
-  private void updateEntry(Map<Symbol, Map<Period, List<Bar>>> map, Symbol symbol, Period period, Bar bar) {
+  private void pushCandidate(Map<Symbol, Map<Period, List<Bar>>> map, Symbol symbol, Period period, Bar bar) {
     map.computeIfAbsent(symbol, s -> new HashMap<>())
             .computeIfAbsent(period, p -> new ArrayList<>()).add(bar);
   }
@@ -130,17 +129,9 @@ public final class InMemoryTrendBarService implements TrendBarService {
     return (b.openAt() >= from && b.closedAt() <= to);
   }
 
-  private static BarBuilder makeBuilderFor(Quote quote, Period p) {
-    return new BarBuilder(quote.price(), quote.timestamp(),
+  private static Function<Period, BarBuilder> makeBuilderFor(Quote quote) {
+    return p -> new BarBuilder(quote.price(), quote.timestamp(),
             quote.timestamp() + p.getDuration().getSeconds());
-  }
-
-  private static Function<Symbol, Map<Period, BarBuilder>> makePeriodsComposer(Quote quote) {
-    var map = new HashMap<Period, BarBuilder>();
-    for (var period : Period.values()) {
-      map.computeIfAbsent(period, p -> makeBuilderFor(quote, p));
-    }
-    return s -> map;
   }
 
   private static final class BarBuilder {

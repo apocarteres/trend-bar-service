@@ -2,16 +2,27 @@ package org.example;
 
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.Mock;
+import org.mockito.junit.jupiter.MockitoExtension;
+
+import java.util.function.Supplier;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.mockito.Mockito.when;
 
+@ExtendWith(MockitoExtension.class)
 class InMemoryTrendBarServiceTest {
+
+  @Mock
+  private Supplier<Long> timeSupplier;
 
   private InMemoryTrendBarService service;
 
   @BeforeEach
   void setUp() {
-    service = new InMemoryTrendBarService(() -> 1000L);
+    when(timeSupplier.get()).thenReturn(1000L);
+    service = new InMemoryTrendBarService(timeSupplier);
   }
 
   @Test
@@ -103,7 +114,7 @@ class InMemoryTrendBarServiceTest {
   }
 
   @Test
-  //not sure should we include closed bars anyways here??
+    //not sure should we include closed bars anyways here??
   void noBarsInRangeWhichSmallerThanPeriod() {
     service.feed(Symbol.EURJPY, 300, 1000);
     service.feed(Symbol.EURJPY, 310, 1010);
@@ -161,7 +172,7 @@ class InMemoryTrendBarServiceTest {
   }
 
   @Test
-  void noBarsIfOutRange() {
+  void noBarsIfOutRangePartialQuotes() {
     service.feed(Symbol.EURJPY, 300, 1000);
     service.feed(Symbol.EURJPY, 310, 1010);
     service.feed(Symbol.EURJPY, 270, 1058);
@@ -179,7 +190,7 @@ class InMemoryTrendBarServiceTest {
   }
 
   @Test
-  void noBarsIfOutRange2() {
+  void noBarsIfOutRangeAllQuotes() {
     service.feed(Symbol.EURJPY, 300, 1000);
     service.feed(Symbol.EURJPY, 310, 1010);
     service.feed(Symbol.EURJPY, 270, 1058);
@@ -194,6 +205,36 @@ class InMemoryTrendBarServiceTest {
     service.updateHistory();
     var history = service.history(Symbol.EURJPY, Period.M1, 1200, 1300);
     assertEquals(0, history.size());
+  }
+
+  @Test
+  void commitsBarWhenTimeIsUp() {
+    service.feed(Symbol.EURJPY, 300, 1000);
+    service.feed(Symbol.EURJPY, 310, 1010);
+    service.feed(Symbol.EURJPY, 270, 1058);
+    service.feed(Symbol.EURJPY, 210, 1059);
+    when(timeSupplier.get()).thenReturn(1200L);
+    service.updateHistory();
+    var history = service.history(Symbol.EURJPY, Period.M1, 1000, 1500);
+    assertEquals(1, history.size());
+  }
+
+  @Test
+  void nextBarCreatedAfterCommitFirstOne() {
+    service.feed(Symbol.EURJPY, 300, 1000);
+    service.feed(Symbol.EURJPY, 310, 1010);
+    service.feed(Symbol.EURJPY, 270, 1058);
+    service.feed(Symbol.EURJPY, 210, 1059);
+    when(timeSupplier.get()).thenReturn(1200L);
+    service.updateHistory();
+    service.feed(Symbol.EURJPY, 400, 1250);
+    service.feed(Symbol.EURJPY, 401, 1251);
+    service.feed(Symbol.EURJPY, 402, 1252);
+    service.feed(Symbol.EURJPY, 403, 1253);
+    when(timeSupplier.get()).thenReturn(1400L);
+    service.updateHistory();
+    var history = service.history(Symbol.EURJPY, Period.M1, 1000, 1500);
+    assertEquals(2, history.size());
   }
 
 }
