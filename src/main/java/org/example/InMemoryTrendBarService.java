@@ -46,11 +46,11 @@ public final class InMemoryTrendBarService implements TrendBarService {
     Quote quote;
     while ((quote = quotes.poll()) != null) {
       var symbol = quote.symbol();
+      var ts = quote.timestamp();
       //block builders and assembly bars, move read-to-go bars into history candidates
       synchronized (buildersMutex) {
         var periods = barBuilders.computeIfAbsent(symbol, s -> new HashMap<>());
         for (var period : Period.values()) {
-          var ts = quote.timestamp();
           var builder = periods.computeIfAbsent(period, makeBuilderFor(quote));
           if (builder.isOpen(ts)) {
             builder.update(quote.price(), ts);

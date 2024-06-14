@@ -237,4 +237,18 @@ class InMemoryTrendBarServiceTest {
     assertEquals(2, history.size());
   }
 
+  @Test
+  void commitingPeriodDoesNotAffectOtherPeriod() {
+    service.feed(Symbol.EURJPY, 100, 1000);
+    service.feed(Symbol.EURJPY, 100, 4551);
+    service.feed(Symbol.EURJPY, 200, 4552);
+    service.feed(Symbol.EURJPY, 100, 4553);
+    when(timeSupplier.get()).thenReturn(4601L);
+    service.updateHistory();
+    var m1 = service.history(Symbol.EURJPY, Period.M1, 4500, 4700);
+    var h1 = service.history(Symbol.EURJPY, Period.H1, 1000, 5000);
+    assertEquals(0, m1.size());
+    assertEquals(200, h1.getFirst().highPrice());
+  }
+
 }
