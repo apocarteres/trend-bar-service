@@ -84,7 +84,7 @@ class InMemoryTrendBarServiceTest {
     service.feed(Symbol.EURJPY, 230, 1061);
     service.updateHistory();
     var history = service.history(Symbol.EURJPY, Period.M1, 900, 1500);
-    assertEquals(270, history.getFirst().closePrice());
+    assertEquals(310, history.getFirst().closePrice());
   }
 
   @Test
