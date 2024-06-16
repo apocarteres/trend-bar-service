@@ -19,17 +19,12 @@ public class Bootstrap {
   public static void main(String[] args) {
     var service = new InMemoryTrendBarService();
     try (var pool = Executors.newFixedThreadPool(5)) {
-      // 2 background jobs, which build history upon received quotes
+      // a background job, which build history upon received quotes. Currently,
+      // we can use 1 job like this, in order to simplify things.
       pool.submit(() -> {
         while (true) {
           service.updateHistory();
           sleep(100);
-        }
-      });
-      pool.submit(() -> {
-        while (true) {
-          service.updateHistory();
-          sleep(150);
         }
       });
 
