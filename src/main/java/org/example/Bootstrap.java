@@ -1,10 +1,14 @@
 package org.example;
 
+import java.text.SimpleDateFormat;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.temporal.ChronoUnit;
+import java.util.Date;
 import java.util.Random;
 import java.util.concurrent.Executors;
 
+import static java.lang.System.exit;
 import static java.lang.Thread.sleep;
 import static org.example.Period.M1;
 
@@ -47,21 +51,37 @@ public class Bootstrap {
 
       //a client job, which queries history
       pool.submit(() -> {
-        var now = Instant.now().getEpochSecond();
+        var startedAt = Instant.now();
         while (true) {
-          System.out.printf("(!) reports generated once per %d minute%n", MINUTES_DELAY_REPORTING);
+          var elapsedTime = Instant.now().minus(startedAt.getEpochSecond(), ChronoUnit.SECONDS);
+          var d = Duration.ofSeconds(elapsedTime.getEpochSecond());
+          System.out.printf("elapsed %s%n", format(d));
           for (var period : Period.values()) {
-            System.out.println(period);
-            var history = service.history(Symbol.EURJPY, period, now);
+            var history = service.history(Symbol.EURJPY, period, startedAt.getEpochSecond());
+            if (history.isEmpty()) {
+              continue;
+            }
+            System.out.printf("%s [%d entries]%n", period, history.size());
             for (Bar bar : history) {
               System.out.print(" - ");
-              System.out.println(bar);
+              System.out.printf("open %s close %s, %s%n", formatTime(bar.openAt()), formatTime(bar.closedAt()), bar);
             }
           }
           System.out.println("---");
-          sleep(Duration.ofMinutes(MINUTES_DELAY_REPORTING).toMillis());
+          sleep(Duration.ofSeconds(1).toMillis());
         }
       });
     }
+  }
+
+  private static String formatTime(long unixTs) {
+    return new SimpleDateFormat("HH:mm:ss").format(new Date(unixTs * 1000L));
+  }
+
+  private static String format(Duration duration) {
+    return duration.toString()
+      .substring(2)
+      .replaceAll("(\\d[HMS])(?!$)", "$1 ")
+      .toLowerCase();
   }
 }

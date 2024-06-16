@@ -155,7 +155,7 @@ public final class InMemoryTrendBarService implements TrendBarService {
     }
 
     public boolean isOpen(long now) {
-      return now >= openAt && now <= validTill;
+      return now >= openAt && now < validTill;
     }
 
     public Bar build() {
