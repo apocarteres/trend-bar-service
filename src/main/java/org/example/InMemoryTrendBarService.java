@@ -7,6 +7,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.function.Supplier;
 
@@ -15,7 +16,8 @@ import static java.util.Collections.emptyList;
 public final class InMemoryTrendBarService implements TrendBarService {
   private final Supplier<Long> timeSupplier;
   private final BlockingQueue<Quote> quotes;
-  private final Map<Symbol, Map<Period, List<Bar>>> history;
+  private final Map<Symbol, Map<Period, List<Bar>>> historyAccumulator;
+  private final AtomicReference<Map<Symbol, Map<Period, List<Bar>>>> readOnlyHistory;
   private final Map<Symbol, Map<Period, BarBuilder>> barBuilders;
   private final Object historyMutex;
   private final Object buildersMutex;
@@ -30,7 +32,8 @@ public final class InMemoryTrendBarService implements TrendBarService {
   public InMemoryTrendBarService(Supplier<Long> timeSupplier) {
     this.timeSupplier = timeSupplier;
     this.quotes = new LinkedBlockingQueue<>();
-    this.history = new HashMap<>();
+    this.historyAccumulator = new HashMap<>();
+    this.readOnlyHistory = new AtomicReference<>(new HashMap<>());
     this.barBuilders = new HashMap<>();
     this.historyMutex = new Object();
     this.buildersMutex = new Object();
@@ -83,10 +86,11 @@ public final class InMemoryTrendBarService implements TrendBarService {
         var symbol = entry.getKey();
         for (var builders : entry.getValue().entrySet()) {
           for (var bar : builders.getValue()) {
-            pushCandidate(history, symbol, builders.getKey(), bar);
+            pushCandidate(historyAccumulator, symbol, builders.getKey(), bar);
           }
         }
       }
+      readOnlyHistory.set(new HashMap<>(historyAccumulator));
     }
   }
 
@@ -107,12 +111,10 @@ public final class InMemoryTrendBarService implements TrendBarService {
 
   @Override
   public List<Bar> history(Symbol symbol, Period period, long from, long to) {
-    synchronized (historyMutex) {
-      return history.getOrDefault(symbol, new HashMap<>())
-              .getOrDefault(period, emptyList()).stream()
-              .filter(b -> isBarEligible(from, to, b))
-              .toList();
-    }
+    return readOnlyHistory.get().getOrDefault(symbol, new HashMap<>())
+      .getOrDefault(period, emptyList()).stream()
+      .filter(b -> isBarEligible(from, to, b))
+      .toList();
   }
 
   @Override
